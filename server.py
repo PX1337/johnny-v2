@@ -393,6 +393,14 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
     body = await request.json()
     method = body.get("method")
 
+    # ping (health check, allowed before initialize)
+    if method == "ping":
+        return {
+            "jsonrpc": "2.0",
+            "result": {},
+            "id": body.get("id")
+        }
+
     # initialize (MCP handshake)
     if method == "initialize":
         return {
@@ -405,6 +413,14 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
                     "version": "2.0.0"
                 }
             },
+            "id": body.get("id")
+        }
+
+    # notifications (client notifications, server can ignore)
+    if method.startswith("notifications/"):
+        return {
+            "jsonrpc": "2.0",
+            "result": {},
             "id": body.get("id")
         }
 
