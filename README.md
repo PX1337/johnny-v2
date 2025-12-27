@@ -73,3 +73,4 @@ Add to `.mcp.json`:
 - Dimensions: 1024
 - Context window: 8192 tokens (16x more than FastEmbed!)
 - Size: 2.3GB (cached in Docker image)
+# Build trigger 1766869182
