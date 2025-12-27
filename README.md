@@ -63,10 +63,13 @@ Add to `.mcp.json`:
 
 ## MCP Tools
 
-- `johnny_search` - Semantic search across collections
-- `johnny_upsert` - Create/update entities
-- `johnny_delete` - Delete entities
-- `johnny_list_collections` - List all collections with point counts and metadata
+| Tool | Description |
+|------|-------------|
+| `johnny_search` | Semantic search. Returns 600-char preview. Params: query, collections[], limit (default 50), score_threshold (default 0.6) |
+| `johnny_get` | Get FULL content for entity. Use after search. Params: collection, entity_name |
+| `johnny_upsert` | Create/update entity. bge-m3 embeds up to 8192 tokens. Params: collection, entity_name, content, metadata |
+| `johnny_delete` | Permanently delete entity. Params: collection, entity_name |
+| `johnny_list_collections` | List all collections with point counts |
 
 ## Model Details
 

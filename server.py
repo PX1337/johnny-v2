@@ -164,7 +164,7 @@ async def ensure_collection(collection: str) -> bool:
 MCP_TOOLS = [
     {
         "name": "johnny_search",
-        "description": "Search for entities by semantic similarity across knowledge collections. Returns ranked results with content, metadata, and relevance scores.",
+        "description": "Semantic search across knowledge collections. Returns ranked results with 600-char preview. Use johnny_get for full content. Params: query (required), collections (array), limit (default 50, no max), score_threshold (default 0.6).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -182,13 +182,12 @@ MCP_TOOLS = [
                     "type": "integer",
                     "description": "Maximum number of results to return (default: 50)",
                     "default": 50,
-                    "minimum": 1,
-                    "maximum": 50
+                    "minimum": 1
                 },
                 "score_threshold": {
                     "type": "number",
-                    "description": "Minimum relevance score (0.0-1.0, default: 0.7)",
-                    "default": 0.7,
+                    "description": "Minimum relevance score (0.0-1.0, default: 0.6)",
+                    "default": 0.6,
                     "minimum": 0.0,
                     "maximum": 1.0
                 }
@@ -198,7 +197,7 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_upsert",
-        "description": "Create or update an entity in Johnny. If entity exists, it will be updated; otherwise created. Content is automatically embedded for semantic search.",
+        "description": "Create or update entity. Content is embedded with bge-m3 (8192 tokens context). Params: collection, entity_name, content (all required), metadata (optional object).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -225,7 +224,7 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_delete",
-        "description": "Delete an entity from Johnny by name. This is permanent and cannot be undone.",
+        "description": "Permanently delete entity by name. Cannot be undone. Params: collection, entity_name (both required).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -243,11 +242,29 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_list_collections",
-        "description": "List all available collections in Johnny/Qdrant with their point counts and metadata.",
+        "description": "List all collections with point counts and access status. No params required.",
         "inputSchema": {
             "type": "object",
             "properties": {},
             "required": []
+        }
+    },
+    {
+        "name": "johnny_get",
+        "description": "Get FULL content and metadata for entity. Use after search when you need complete text (search shows 600-char preview). Params: collection, entity_name (both required).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "collection": {
+                    "type": "string",
+                    "description": "Collection name"
+                },
+                "entity_name": {
+                    "type": "string",
+                    "description": "Entity name to retrieve (from search results)"
+                }
+            },
+            "required": ["collection", "entity_name"]
         }
     }
 ]
@@ -259,7 +276,7 @@ async def handle_search(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     query = args.get("query")
     collections = args.get("collections", ["shared-knowledge"])
     limit = args.get("limit", 50)
-    score_threshold = args.get("score_threshold", 0.7)
+    score_threshold = args.get("score_threshold", 0.6)
 
     if not query:
         return "Error: query is required"
@@ -318,7 +335,7 @@ async def handle_search(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     for i, result in enumerate(all_results, 1):
         output += f"{i}. {result['entity_name']} (score: {result['score']:.3f})\n"
         output += f"   Collection: {result['collection']}\n"
-        output += f"   {result['content'][:200]}...\n\n"
+        output += f"   {result['content'][:600]}...\n\n"
 
     return output
 
@@ -442,6 +459,55 @@ async def handle_list_collections(args: Dict[str, Any], user_info: Dict[str, str
     return output
 
 
+async def handle_get(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
+    """Get full entity content by name"""
+    collection = args.get("collection")
+    entity_name = args.get("entity_name")
+
+    if not all([collection, entity_name]):
+        return "Error: collection and entity_name are required"
+
+    # Check read access
+    if not check_collection_access(user_info, collection, "read"):
+        return f"⛔ Access denied: You don't have read access to collection '{collection}'"
+
+    # Get point by ID (hash of entity_name)
+    point_id = abs(hash(entity_name)) % (2**63)
+
+    response = await qdrant_client.post(
+        f"/collections/{collection}/points",
+        json={"ids": [point_id], "with_payload": True}
+    )
+
+    if response.status_code != 200:
+        return f"Error: Failed to fetch entity (status: {response.status_code})"
+
+    data = response.json()
+    points = data.get("result", [])
+
+    if not points:
+        return f"Entity '{entity_name}' not found in collection '{collection}'"
+
+    point = points[0]
+    payload = point.get("payload", {})
+
+    # Format full output
+    output = f"Entity: {payload.get('entity_name', entity_name)}\n"
+    output += f"Collection: {collection}\n\n"
+    output += "--- CONTENT ---\n"
+    output += payload.get("content", "(no content)") + "\n\n"
+    output += "--- METADATA ---\n"
+
+    metadata = payload.get("metadata", {})
+    for key, value in metadata.items():
+        if isinstance(value, list):
+            output += f"{key}: {', '.join(str(v) for v in value)}\n"
+        else:
+            output += f"{key}: {value}\n"
+
+    return output
+
+
 # MCP Endpoints
 @app.post("/mcp")
 async def mcp_endpoint(request: Request, authorization: str = Header(None)):
@@ -502,6 +568,8 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
             result = await handle_delete(args, user_info)
         elif tool_name == "johnny_list_collections":
             result = await handle_list_collections(args, user_info)
+        elif tool_name == "johnny_get":
+            result = await handle_get(args, user_info)
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 
