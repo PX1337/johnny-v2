@@ -29,9 +29,17 @@ from sentence_transformers import SentenceTransformer
 # Configuration
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-BEARER_TOKEN = os.getenv("BEARER_TOKEN", "dev-token-change-me")
+BEARER_TOKEN = os.getenv("BEARER_TOKEN", "dev-token-change-me")  # Fallback for old clients
+USER_TOKENS_JSON = os.getenv("USER_TOKENS", "{}")
 EMBEDDING_MODEL = "BAAI/bge-m3"
 VECTOR_SIZE = 1024
+
+# Parse user tokens
+try:
+    USER_TOKENS = json.loads(USER_TOKENS_JSON)
+except json.JSONDecodeError:
+    print("⚠️ Invalid USER_TOKENS JSON, using fallback auth")
+    USER_TOKENS = {}
 
 # Global state
 embedding_model: Optional[SentenceTransformer] = None
@@ -80,8 +88,8 @@ app = FastAPI(
 
 
 # Auth middleware
-def verify_token(authorization: Optional[str] = Header(None)):
-    """Verify Bearer token"""
+def verify_token(authorization: Optional[str] = Header(None)) -> Dict[str, str]:
+    """Verify Bearer token and return user info"""
     if not authorization:
         raise HTTPException(401, "Missing Authorization header")
 
@@ -89,8 +97,33 @@ def verify_token(authorization: Optional[str] = Header(None)):
         raise HTTPException(401, "Invalid Authorization format")
 
     token = authorization[7:]
-    if token != BEARER_TOKEN:
-        raise HTTPException(401, "Invalid token")
+
+    # Check USER_TOKENS first (new multi-user auth)
+    if token in USER_TOKENS:
+        return USER_TOKENS[token]
+
+    # Fallback to old BEARER_TOKEN (backward compatibility)
+    if token == BEARER_TOKEN:
+        return {"user": "anonymous", "role": "write"}
+
+    raise HTTPException(401, "Invalid token")
+
+
+def check_collection_access(user_info: Dict[str, str], collection: str, operation: str) -> bool:
+    """Check if user has access to collection for given operation (read/write)"""
+    username = user_info.get("user", "")
+    role = user_info.get("role", "read")
+
+    # Private collections: only owner has access
+    if collection.startswith("private-"):
+        owner = collection[8:]  # Remove "private-" prefix
+        return username == owner
+
+    # Shared collections: everyone can read, only write role can write
+    if operation == "write":
+        return role == "write"
+
+    return True  # Everyone can read shared collections
 
 
 # Helper functions
@@ -212,7 +245,7 @@ MCP_TOOLS = [
 
 
 # Tool handlers
-async def handle_search(args: Dict[str, Any]) -> str:
+async def handle_search(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     """Search entities by semantic similarity"""
     query = args.get("query")
     collections = args.get("collections", ["shared-knowledge"])
@@ -227,8 +260,14 @@ async def handle_search(args: Dict[str, Any]) -> str:
 
     # Search across collections
     all_results = []
+    denied_collections = []
 
     for collection in collections:
+        # Check access
+        if not check_collection_access(user_info, collection, "read"):
+            denied_collections.append(collection)
+            continue
+
         await ensure_collection(collection)
 
         response = await qdrant_client.post(
@@ -256,11 +295,17 @@ async def handle_search(args: Dict[str, Any]) -> str:
     all_results.sort(key=lambda x: x["score"], reverse=True)
     all_results = all_results[:limit]
 
-    if not all_results:
-        return f"No results found for query: '{query}'\nSearched collections: {', '.join(collections)}\nScore threshold: {score_threshold}"
+    # Build output
+    output = ""
+    if denied_collections:
+        output += f"⚠️ Access denied to: {', '.join(denied_collections)}\n\n"
 
-    # Format output
-    output = f"Found {len(all_results)} results:\n\n"
+    if not all_results:
+        searched = [c for c in collections if c not in denied_collections]
+        return output + f"No results found for query: '{query}'\nSearched collections: {', '.join(searched)}\nScore threshold: {score_threshold}"
+
+    # Format results
+    output += f"Found {len(all_results)} results:\n\n"
     for i, result in enumerate(all_results, 1):
         output += f"{i}. {result['entity_name']} (score: {result['score']:.3f})\n"
         output += f"   Collection: {result['collection']}\n"
@@ -269,7 +314,7 @@ async def handle_search(args: Dict[str, Any]) -> str:
     return output
 
 
-async def handle_upsert(args: Dict[str, Any]) -> str:
+async def handle_upsert(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     """Create or update entity"""
     collection = args.get("collection")
     entity_name = args.get("entity_name")
@@ -278,6 +323,10 @@ async def handle_upsert(args: Dict[str, Any]) -> str:
 
     if not all([collection, entity_name, content]):
         return "Error: collection, entity_name, and content are required"
+
+    # Check write access
+    if not check_collection_access(user_info, collection, "write"):
+        return f"⛔ Access denied: You don't have write access to collection '{collection}'"
 
     # Ensure collection exists
     await ensure_collection(collection)
@@ -309,13 +358,17 @@ async def handle_upsert(args: Dict[str, Any]) -> str:
         return f"Error: Failed to upsert (status: {response.status_code})"
 
 
-async def handle_delete(args: Dict[str, Any]) -> str:
+async def handle_delete(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     """Delete entity"""
     collection = args.get("collection")
     entity_name = args.get("entity_name")
 
     if not all([collection, entity_name]):
         return "Error: collection and entity_name are required"
+
+    # Check write access
+    if not check_collection_access(user_info, collection, "write"):
+        return f"⛔ Access denied: You don't have write access to collection '{collection}'"
 
     # Find point by entity_name
     point_id = abs(hash(entity_name)) % (2**63)
@@ -335,7 +388,7 @@ async def handle_delete(args: Dict[str, Any]) -> str:
 @app.post("/mcp")
 async def mcp_endpoint(request: Request, authorization: str = Header(None)):
     """MCP protocol endpoint"""
-    verify_token(authorization)
+    user_info = verify_token(authorization)
 
     body = await request.json()
     method = body.get("method")
@@ -353,11 +406,11 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
         args = params.get("arguments", {})
 
         if tool_name == "johnny_search":
-            result = await handle_search(args)
+            result = await handle_search(args, user_info)
         elif tool_name == "johnny_upsert":
-            result = await handle_upsert(args)
+            result = await handle_upsert(args, user_info)
         elif tool_name == "johnny_delete":
-            result = await handle_delete(args)
+            result = await handle_delete(args, user_info)
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 
