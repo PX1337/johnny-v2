@@ -393,6 +393,21 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
     body = await request.json()
     method = body.get("method")
 
+    # initialize (MCP handshake)
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {
+                    "name": "Johnny v2 MCP Server",
+                    "version": "2.0.0"
+                }
+            },
+            "id": body.get("id")
+        }
+
     # tools/list
     if method == "tools/list":
         return {
