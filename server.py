@@ -240,6 +240,15 @@ MCP_TOOLS = [
             },
             "required": ["collection", "entity_name"]
         }
+    },
+    {
+        "name": "johnny_list_collections",
+        "description": "List all available collections in Johnny/Qdrant with their point counts and metadata.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
     }
 ]
 
@@ -384,6 +393,55 @@ async def handle_delete(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
         return f"Error: Failed to delete (status: {response.status_code})"
 
 
+async def handle_list_collections(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
+    """List all collections with their metadata"""
+    if not qdrant_client:
+        return "Error: Qdrant client not available"
+
+    # Get all collections from Qdrant
+    response = await qdrant_client.get("/collections")
+
+    if response.status_code != 200:
+        return f"Error: Failed to fetch collections (status: {response.status_code})"
+
+    data = response.json()
+    collections = data.get("result", {}).get("collections", [])
+
+    if not collections:
+        return "No collections found in Qdrant"
+
+    # Build output
+    output = f"Found {len(collections)} collections:\n\n"
+
+    for coll in collections:
+        name = coll.get("name", "unknown")
+
+        # Check if user has read access
+        has_access = check_collection_access(user_info, name, "read")
+        access_marker = "✅" if has_access else "🔒"
+
+        # Get collection info for point count
+        coll_response = await qdrant_client.get(f"/collections/{name}")
+        if coll_response.status_code == 200:
+            coll_data = coll_response.json()
+            point_count = coll_data.get("result", {}).get("points_count", 0)
+            output += f"{access_marker} {name}\n"
+            output += f"   Points: {point_count:,}\n"
+
+            # Add vector config info
+            vectors_config = coll_data.get("result", {}).get("config", {}).get("params", {}).get("vectors", {})
+            if "size" in vectors_config:
+                output += f"   Vector size: {vectors_config['size']}\n"
+            output += "\n"
+        else:
+            output += f"{access_marker} {name}\n   (Unable to fetch details)\n\n"
+
+    # Add legend
+    output += "Legend: ✅ = readable, 🔒 = no access"
+
+    return output
+
+
 # MCP Endpoints
 @app.post("/mcp")
 async def mcp_endpoint(request: Request, authorization: str = Header(None)):
@@ -442,6 +500,8 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
             result = await handle_upsert(args, user_info)
         elif tool_name == "johnny_delete":
             result = await handle_delete(args, user_info)
+        elif tool_name == "johnny_list_collections":
+            result = await handle_list_collections(args, user_info)
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 

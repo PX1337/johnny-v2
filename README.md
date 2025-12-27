@@ -66,6 +66,7 @@ Add to `.mcp.json`:
 - `johnny_search` - Semantic search across collections
 - `johnny_upsert` - Create/update entities
 - `johnny_delete` - Delete entities
+- `johnny_list_collections` - List all collections with point counts and metadata
 
 ## Model Details
 
