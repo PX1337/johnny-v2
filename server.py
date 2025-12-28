@@ -174,13 +174,14 @@ async def ensure_collection(collection: str) -> bool:
 MCP_TOOLS = [
     {
         "name": "johnny_search",
-        "description": "Wyszukiwanie semantyczne w bazie wiedzy. POLSKIE tresci - szukaj PO POLSKU! "
+        "description": "Wyszukiwanie semantyczne. POLSKIE tresci - szukaj PO POLSKU! "
                        "WORKFLOW: 1) Search zwraca wyniki z 600-znakowym PREVIEW. "
-                       "2) Przeczytaj WSZYSTKIE preview (nie tylko top!). "
-                       "3) Wybierz 6-9 najbardziej RELEVANTNYCH dla pytania usera (score to tylko podobienstwo slow, NIE jakosc!). "
-                       "4) Wywolaj johnny_get dla KAZDEGO wybranego. "
-                       "5) Odpowiedz na podstawie PELNEJ tresci. "
-                       "NIE odpowiadaj z samych preview!",
+                       "2) Przeczytaj WSZYSTKIE preview. "
+                       "3) Wybierz 6-9 ROZNORODNYCH wpisow - rozne perspektywy, typy, zrodla. "
+                       "Nie 9 podobnych! Szukaj pelnego obrazu: techniczne + biznesowe + case studies. "
+                       "4) johnny_get dla kazdego wybranego (rownolegle). "
+                       "5) Odpowiedz z PELNEJ tresci. "
+                       "Score to podobienstwo slow, NIE jakosc!",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -268,9 +269,9 @@ MCP_TOOLS = [
     {
         "name": "johnny_get",
         "description": "Pobierz PELNA tresc wpisu. WYMAGANE po search! "
-                       "Wywolaj dla 6-9 wpisow ktore PASUJA do pytania usera. "
-                       "Nie wybieraj tylko top score - czytaj preview i wybieraj te ktore brznia PRZYDATNE dla konkretnego zadania. "
-                       "Mozesz wywolac wielokrotnie rownolegle.",
+                       "Wywolaj dla 6-9 wpisow z ROZNYMI perspektywami. "
+                       "Wybieraj roznorodnie: case study + process + techniczny + biznesowy. "
+                       "Wywoluj ROWNOLEGLE - wiele get naraz!",
         "inputSchema": {
             "type": "object",
             "properties": {
