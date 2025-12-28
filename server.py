@@ -18,6 +18,7 @@ Environment variables:
 import os
 import json
 import asyncio
+import hashlib
 from typing import Any, Dict, List, Optional
 from contextlib import asynccontextmanager
 
@@ -127,6 +128,15 @@ def check_collection_access(user_info: Dict[str, str], collection: str, operatio
 
 
 # Helper functions
+def stable_hash(s: str) -> int:
+    """Deterministic hash that survives server restarts.
+
+    Python's built-in hash() is randomized per session (PYTHONHASHSEED).
+    This uses SHA256 for consistent IDs across restarts.
+    """
+    return int(hashlib.sha256(s.encode()).hexdigest()[:16], 16)
+
+
 async def generate_embedding(text: str) -> List[float]:
     """Generate embedding using bge-m3"""
     if not embedding_model:
@@ -164,7 +174,13 @@ async def ensure_collection(collection: str) -> bool:
 MCP_TOOLS = [
     {
         "name": "johnny_search",
-        "description": "Wyszukiwanie semantyczne w bazie wiedzy. WAZNE: Baza zawiera POLSKIE tresci - szukaj PO POLSKU! Angielskie zapytania dadza slabe wyniki. Zwraca ranking z 600-znakowym podgladem. Uzyj johnny_get dla pelnej tresci. Parametry: query (wymagany - po polsku!), collections (tablica), limit (domyslnie 50), score_threshold (domyslnie 0.6).",
+        "description": "Wyszukiwanie semantyczne w bazie wiedzy. POLSKIE tresci - szukaj PO POLSKU! "
+                       "WORKFLOW: 1) Search zwraca wyniki z 600-znakowym PREVIEW. "
+                       "2) Przeczytaj WSZYSTKIE preview (nie tylko top!). "
+                       "3) Wybierz 6-9 najbardziej RELEVANTNYCH dla pytania usera (score to tylko podobienstwo slow, NIE jakosc!). "
+                       "4) Wywolaj johnny_get dla KAZDEGO wybranego. "
+                       "5) Odpowiedz na podstawie PELNEJ tresci. "
+                       "NIE odpowiadaj z samych preview!",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -251,7 +267,10 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_get",
-        "description": "Pobierz PELNA tresc i metadane wpisu. Uzyj po wyszukiwaniu gdy potrzebujesz kompletnego tekstu (search pokazuje 600-znakowy podglad). Parametry: collection, entity_name (oba wymagane).",
+        "description": "Pobierz PELNA tresc wpisu. WYMAGANE po search! "
+                       "Wywolaj dla 6-9 wpisow ktore PASUJA do pytania usera. "
+                       "Nie wybieraj tylko top score - czytaj preview i wybieraj te ktore brznia PRZYDATNE dla konkretnego zadania. "
+                       "Mozesz wywolac wielokrotnie rownolegle.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -360,8 +379,8 @@ async def handle_upsert(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     # Generate embedding
     vector = await generate_embedding(content)
 
-    # Upsert to Qdrant
-    point_id = abs(hash(entity_name)) % (2**63)
+    # Upsert to Qdrant (stable_hash for consistent IDs across restarts)
+    point_id = stable_hash(entity_name)
 
     response = await qdrant_client.put(
         f"/collections/{collection}/points",
@@ -396,8 +415,8 @@ async def handle_delete(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     if not check_collection_access(user_info, collection, "write"):
         return f"⛔ Access denied: You don't have write access to collection '{collection}'"
 
-    # Find point by entity_name
-    point_id = abs(hash(entity_name)) % (2**63)
+    # Find point by entity_name (stable_hash for consistent IDs)
+    point_id = stable_hash(entity_name)
 
     response = await qdrant_client.post(
         f"/collections/{collection}/points/delete",
@@ -472,7 +491,7 @@ async def handle_get(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
         return f"⛔ Access denied: You don't have read access to collection '{collection}'"
 
     # Get point by ID (hash of entity_name)
-    point_id = abs(hash(entity_name)) % (2**63)
+    point_id = stable_hash(entity_name)
 
     response = await qdrant_client.post(
         f"/collections/{collection}/points",
