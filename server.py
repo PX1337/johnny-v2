@@ -520,6 +520,17 @@ async def oauth_protected_resource():
 
 
 # MCP Endpoints
+@app.get("/mcp")
+async def mcp_get_endpoint(authorization: str = Header(None)):
+    """Handle GET requests for MCP (SSE session resumption - not supported)"""
+    # Claude Code may try GET for SSE streaming - return proper JSON-RPC error
+    return JSONResponse({
+        "jsonrpc": "2.0",
+        "error": {"code": -32001, "message": "Session resumption not supported"},
+        "id": None
+    })
+
+
 @app.post("/mcp")
 async def mcp_endpoint(request: Request, authorization: str = Header(None)):
     """MCP protocol endpoint"""
