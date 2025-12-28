@@ -508,17 +508,6 @@ async def handle_get(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     return output
 
 
-# OAuth metadata for Claude Code MCP HTTP auth
-@app.get("/.well-known/oauth-protected-resource")
-async def oauth_protected_resource():
-    """OAuth 2.0 Protected Resource Metadata - tells clients how to authenticate"""
-    return {
-        "resource": "https://johnny-v2-production.up.railway.app",
-        "bearer_methods_supported": ["header"],
-        "resource_documentation": "https://johnny-v2-production.up.railway.app/docs"
-    }
-
-
 # MCP Endpoints
 @app.get("/mcp")
 async def mcp_get_endpoint(authorization: str = Header(None)):
