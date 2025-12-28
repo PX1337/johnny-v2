@@ -164,29 +164,29 @@ async def ensure_collection(collection: str) -> bool:
 MCP_TOOLS = [
     {
         "name": "johnny_search",
-        "description": "Semantic search across knowledge collections. Returns ranked results with 600-char preview. Use johnny_get for full content. Params: query (required), collections (array), limit (default 50, no max), score_threshold (default 0.6).",
+        "description": "Wyszukiwanie semantyczne w bazie wiedzy. WAZNE: Szukaj PO POLSKU - baza zawiera polskie tresci, polskie zapytania daja lepsze wyniki! Zwraca ranking z 600-znakowym podgladem. Uzyj johnny_get dla pelnej tresci. Parametry: query (wymagany, pisz po polsku!), collections (tablica), limit (domyslnie 50), score_threshold (domyslnie 0.6).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query string"
+                    "description": "Zapytanie wyszukiwania - PISZ PO POLSKU dla najlepszych wynikow!"
                 },
                 "collections": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Collections to search (e.g., ['shared-knowledge', 'language-style'])",
+                    "description": "Kolekcje do przeszukania (np. ['shared-knowledge', 'merceplatform'])",
                     "default": ["shared-knowledge"]
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of results to return (default: 50)",
+                    "description": "Maksymalna liczba wynikow (domyslnie: 50)",
                     "default": 50,
                     "minimum": 1
                 },
                 "score_threshold": {
                     "type": "number",
-                    "description": "Minimum relevance score (0.0-1.0, default: 0.6)",
+                    "description": "Minimalny prog trafnosci (0.0-1.0, domyslnie: 0.6)",
                     "default": 0.6,
                     "minimum": 0.0,
                     "maximum": 1.0
@@ -197,25 +197,25 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_upsert",
-        "description": "Create or update entity. Content is embedded with bge-m3 (8192 tokens context). Params: collection, entity_name, content (all required), metadata (optional object).",
+        "description": "Utworz lub zaktualizuj wpis. Tresc jest embeddowana przez bge-m3 (8192 tokenow kontekstu). Parametry: collection, entity_name, content (wszystkie wymagane), metadata (opcjonalny obiekt).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "collection": {
                     "type": "string",
-                    "description": "Collection name"
+                    "description": "Nazwa kolekcji"
                 },
                 "entity_name": {
                     "type": "string",
-                    "description": "Unique entity name/identifier"
+                    "description": "Unikalna nazwa/identyfikator wpisu"
                 },
                 "content": {
                     "type": "string",
-                    "description": "Entity content (will be embedded for search)"
+                    "description": "Tresc wpisu (bedzie embeddowana do wyszukiwania)"
                 },
                 "metadata": {
                     "type": "object",
-                    "description": "Additional metadata (type, category, date, etc.)",
+                    "description": "Dodatkowe metadane (type, category, date, itp.)",
                     "additionalProperties": True
                 }
             },
@@ -224,17 +224,17 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_delete",
-        "description": "Permanently delete entity by name. Cannot be undone. Params: collection, entity_name (both required).",
+        "description": "Trwale usun wpis po nazwie. Nie mozna cofnac! Parametry: collection, entity_name (oba wymagane).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "collection": {
                     "type": "string",
-                    "description": "Collection name"
+                    "description": "Nazwa kolekcji"
                 },
                 "entity_name": {
                     "type": "string",
-                    "description": "Entity name to delete"
+                    "description": "Nazwa wpisu do usuniecia"
                 }
             },
             "required": ["collection", "entity_name"]
@@ -242,7 +242,7 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_list_collections",
-        "description": "List all collections with point counts and access status. No params required.",
+        "description": "Lista wszystkich kolekcji z liczba wpisow i statusem dostepu. Bez parametrow.",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -251,17 +251,17 @@ MCP_TOOLS = [
     },
     {
         "name": "johnny_get",
-        "description": "Get FULL content and metadata for entity. Use after search when you need complete text (search shows 600-char preview). Params: collection, entity_name (both required).",
+        "description": "Pobierz PELNA tresc i metadane wpisu. Uzyj po wyszukiwaniu gdy potrzebujesz kompletnego tekstu (search pokazuje 600-znakowy podglad). Parametry: collection, entity_name (oba wymagane).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "collection": {
                     "type": "string",
-                    "description": "Collection name"
+                    "description": "Nazwa kolekcji"
                 },
                 "entity_name": {
                     "type": "string",
-                    "description": "Entity name to retrieve (from search results)"
+                    "description": "Nazwa wpisu do pobrania (z wynikow wyszukiwania)"
                 }
             },
             "required": ["collection", "entity_name"]
