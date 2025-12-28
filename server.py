@@ -164,13 +164,13 @@ async def ensure_collection(collection: str) -> bool:
 MCP_TOOLS = [
     {
         "name": "johnny_search",
-        "description": "Wyszukiwanie semantyczne w bazie wiedzy. WAZNE: Szukaj PO POLSKU - baza zawiera polskie tresci, polskie zapytania daja lepsze wyniki! Zwraca ranking z 600-znakowym podgladem. Uzyj johnny_get dla pelnej tresci. Parametry: query (wymagany, pisz po polsku!), collections (tablica), limit (domyslnie 50), score_threshold (domyslnie 0.6).",
+        "description": "Wyszukiwanie semantyczne w bazie wiedzy. WAZNE: Baza zawiera POLSKIE tresci - szukaj PO POLSKU! Angielskie zapytania dadza slabe wyniki. Zwraca ranking z 600-znakowym podgladem. Uzyj johnny_get dla pelnej tresci. Parametry: query (wymagany - po polsku!), collections (tablica), limit (domyslnie 50), score_threshold (domyslnie 0.6).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Zapytanie wyszukiwania - PISZ PO POLSKU dla najlepszych wynikow!"
+                    "description": "Zapytanie - PISZ PO POLSKU! Baza zawiera polskie tresci, angielskie query nie zadziala."
                 },
                 "collections": {
                     "type": "array",
