@@ -562,7 +562,9 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
     # tools/list
     if method == "tools/list":
         return {
-            "tools": MCP_TOOLS
+            "jsonrpc": "2.0",
+            "result": {"tools": MCP_TOOLS},
+            "id": body.get("id")
         }
 
     # tools/call
@@ -582,13 +584,23 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
         elif tool_name == "johnny_get":
             result = await handle_get(args, user_info)
         else:
-            return {"error": f"Unknown tool: {tool_name}"}
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"},
+                "id": body.get("id")
+            }
 
         return {
-            "content": [{"type": "text", "text": result}]
+            "jsonrpc": "2.0",
+            "result": {"content": [{"type": "text", "text": result}]},
+            "id": body.get("id")
         }
 
-    return {"error": f"Unknown method: {method}"}
+    return {
+        "jsonrpc": "2.0",
+        "error": {"code": -32601, "message": f"Unknown method: {method}"},
+        "id": body.get("id")
+    }
 
 
 @app.get("/health")
