@@ -614,6 +614,24 @@ async def health():
     }
 
 
+@app.get("/.well-known/oauth-authorization-server")
+async def oauth_not_supported():
+    """
+    OAuth discovery endpoint - returns error to tell MCP clients
+    that this server uses Bearer token auth, not OAuth.
+
+    Claude Code tries OAuth discovery first and fails on 404.
+    This returns a proper response so it falls back to Bearer token.
+    """
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "invalid_request",
+            "error_description": "OAuth not supported. Use Bearer token authentication via Authorization header."
+        }
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
