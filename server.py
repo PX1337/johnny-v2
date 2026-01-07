@@ -286,6 +286,20 @@ MCP_TOOLS = [
             },
             "required": ["collection", "entity_name"]
         }
+    },
+    {
+        "name": "johnny_delete_collection",
+        "description": "Usun cala kolekcje. NIEODWRACALNE! Wymaga roli 'admin'. Parametr: collection (wymagany).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "collection": {
+                    "type": "string",
+                    "description": "Nazwa kolekcji do usuniecia"
+                }
+            },
+            "required": ["collection"]
+        }
     }
 ]
 
@@ -479,6 +493,36 @@ async def handle_list_collections(args: Dict[str, Any], user_info: Dict[str, str
     return output
 
 
+async def handle_delete_collection(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
+    """Delete entire collection - admin only"""
+    collection = args.get("collection")
+
+    if not collection:
+        return "Error: collection is required"
+
+    # Only write role can delete collections
+    role = user_info.get("role", "read")
+    if role != "write":
+        return f"⛔ Access denied: Only write role can delete collections (your role: {role})"
+
+    # Safety check - prevent deleting shared-knowledge
+    if collection == "shared-knowledge":
+        return "⛔ Cannot delete shared-knowledge - this is the main knowledge base"
+
+    if not qdrant_client:
+        return "Error: Qdrant client not available"
+
+    # Delete collection
+    response = await qdrant_client.delete(f"/collections/{collection}")
+
+    if response.status_code == 200:
+        return f"✅ Collection '{collection}' deleted permanently"
+    elif response.status_code == 404:
+        return f"Collection '{collection}' not found"
+    else:
+        return f"Error: Failed to delete collection (status: {response.status_code})"
+
+
 async def handle_get(args: Dict[str, Any], user_info: Dict[str, str]) -> str:
     """Get full entity content by name"""
     collection = args.get("collection")
@@ -603,6 +647,8 @@ async def mcp_endpoint(request: Request, authorization: str = Header(None)):
             result = await handle_list_collections(args, user_info)
         elif tool_name == "johnny_get":
             result = await handle_get(args, user_info)
+        elif tool_name == "johnny_delete_collection":
+            result = await handle_delete_collection(args, user_info)
         else:
             return {
                 "jsonrpc": "2.0",
