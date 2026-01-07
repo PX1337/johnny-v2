@@ -500,10 +500,10 @@ async def handle_delete_collection(args: Dict[str, Any], user_info: Dict[str, st
     if not collection:
         return "Error: collection is required"
 
-    # Only write role can delete collections
+    # Only admin can delete collections
     role = user_info.get("role", "read")
-    if role != "write":
-        return f"⛔ Access denied: Only write role can delete collections (your role: {role})"
+    if role != "admin":
+        return f"⛔ Access denied: Only admin can delete collections (your role: {role})"
 
     # Safety check - prevent deleting shared-knowledge
     if collection == "shared-knowledge":
