@@ -120,9 +120,9 @@ def check_collection_access(user_info: Dict[str, str], collection: str, operatio
         owner = collection[8:]  # Remove "private-" prefix
         return username == owner
 
-    # Shared collections: everyone can read, only write role can write
+    # Shared collections: everyone can read, only write/admin role can write
     if operation == "write":
-        return role == "write"
+        return role in ["write", "admin"]
 
     return True  # Everyone can read shared collections
 
